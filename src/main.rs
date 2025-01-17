@@ -4,6 +4,7 @@ use k256::{ecdsa::SigningKey, sha2::Sha512, PublicKey};
 use tiny_keccak::{Keccak, Hasher};
 use rand::rngs::OsRng;
 use anyhow::{Error, Ok, Result};
+use bip39::{Mnemonic, MnemonicType, Language, Seed};
 use hmac::{Hmac, Mac};
 
 
@@ -16,7 +17,7 @@ pub struct Wallet {
 }
 
 impl Wallet {
-    pub fn new_wallet() -> Result<Self> {
+    pub fn new_random_wallet_generation() -> Result<Self> {
         // generating random wallet
         let private_key = SigningKey::random(&mut OsRng);
         let public_key = private_key.verifying_key().to_encoded_point(false);
@@ -40,6 +41,39 @@ impl Wallet {
         })
     }
 
+    pub fn new_wallet_with_mnemonics() -> Result<Self>{
+        let mnemonic = Mnemonic::new(MnemonicType::Words12, Language::English);
+        
+        
+
+        // get the HD wallet seed/ generate mnemonic to seed
+        let seed = Seed::new(&mnemonic, "");
+
+        let wallet = Self::derive_wallet_from_seed(&seed.as_bytes())?;
+
+        Ok(Self {
+            private_key: wallet.private_key,
+            public_key: wallet.public_key,
+            address: wallet.address,
+            mnemonic: Some(mnemonic.phrase().to_string())
+        })
+    }
+
+     // Recover wallet from mnemonic phrase
+     pub fn recover_account_from_mnemonic(phrase: &str) -> Result<Self> {
+        let mnemonic = Mnemonic::from_phrase(phrase, Language::English)
+                                                    .map_err(|e| Error::msg(format!("Invalid Mnemonic Phrase {}",e )))?;
+        let seed = Seed::new(&mnemonic, "");
+
+        let wallet = Self::derive_wallet_from_seed(&seed.as_bytes())?;
+
+        Ok(Self {
+            private_key: wallet.private_key,
+            public_key: wallet.public_key,
+            address: wallet.address,
+            mnemonic: Some(mnemonic.phrase().to_string())
+        })
+     }
 
     //internal helper function
     fn derive_wallet_from_seed(seed: &[u8]) -> Result<Self> {
@@ -79,14 +113,24 @@ impl Wallet {
     pub fn get_address(&self) -> String {
         format!("{:#x}", self.address)
     }
+
+    pub fn get_mnemonic(&self) -> Option<&str> {
+        self.mnemonic.as_deref()
+    }
 }
 
 fn main() -> Result<()> {
-    let wallet = Wallet::new_wallet()?;
+    let wallet = Wallet::new_wallet_with_mnemonics()?;
 
     println!("{:?}", wallet);
 
-    // println!("Wallet Address: {}", wallet.get_address());
+    println!("Wallet Address: {}", wallet.get_address());
+
+    println!("Recovering Account.....");
+    let wallet_recovery = Wallet::recover_account_from_mnemonic(wallet.get_mnemonic().unwrap());
+
+    println!("Recovered Account is {:?}", wallet_recovery);
+   
 
     Ok(())
 
