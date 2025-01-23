@@ -75,6 +75,41 @@ impl Wallet {
         })
      }
 
+     pub fn recover_account_from_private_key(private_key_hex: &str) -> Result<Self> {
+        // Remove "0x" prefix if present
+        let private_key_hex = private_key_hex.trim_start_matches("0x");
+        
+        // Convert hex string to bytes
+        let private_key_bytes = hex::decode(private_key_hex)
+            .map_err(|e| Error::msg(format!("Invalid private key hex format: {}", e)))?;
+            
+        // Create SigningKey from bytes
+        let private_key = SigningKey::from_bytes(private_key_bytes.as_slice().into())
+            .map_err(|e| Error::msg(format!("Invalid private key: {}", e)))?;
+            
+        // Get public key
+        let public_key = private_key.verifying_key().to_encoded_point(false);
+        
+        // Generate Ethereum address
+        let mut hasher = Keccak::v256();
+        let mut hash = [0u8; 32];
+        hasher.update(&public_key.as_bytes()[1..]); // Skip the 0x04 prefix
+        hasher.finalize(&mut hash);
+        
+        let mut address_bytes = [0u8; 20];
+        address_bytes.copy_from_slice(&hash[12..32]);
+        let address = Address::from_slice(&address_bytes);
+        
+        let public_key = (*private_key.verifying_key()).into();
+        
+        Ok(Self {
+            private_key,
+            public_key,
+            address,
+            mnemonic: None  // Private key imports won't have a mnemonic
+        })
+    }
+
     //internal helper function
     fn derive_wallet_from_seed(seed: &[u8]) -> Result<Self> {
         let mut hmac = Hmac::<Sha512>::new_from_slice(b"Bitcoin seed")
@@ -140,6 +175,9 @@ fn main() -> Result<()> {
 
     println!("Recovered Account Private Key: {}\n\n", wallet_recovery.unwrap().export_private_key());
    
+    // Recover wallet using the private key
+    let wallet_recovery_private_key = Wallet::recover_account_from_private_key(wallet.export_private_key().as_str());
+    println!("Recovered Account Address from the Private Key: {}\n\n", wallet_recovery_private_key.unwrap().get_address());
 
     Ok(())
 
