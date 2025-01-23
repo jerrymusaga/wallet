@@ -13,7 +13,7 @@ pub struct Wallet {
     private_key: SigningKey,
     public_key: PublicKey,
     address: Address,
-    mnemonic: Option<String>
+    mnemonic: Option<String>,
 }
 
 impl Wallet {
@@ -117,6 +117,13 @@ impl Wallet {
     pub fn get_mnemonic(&self) -> Option<&str> {
         self.mnemonic.as_deref()
     }
+
+    pub fn export_private_key(&self) -> String {
+        // Convert private key to bytes and format as hex string
+        // Skip "0x" prefix as many wallets expect raw hex
+        let private_key_bytes = self.private_key.to_bytes();
+        hex::encode(private_key_bytes)
+    }
 }
 
 fn main() -> Result<()> {
@@ -124,12 +131,14 @@ fn main() -> Result<()> {
 
     println!("{:?}", wallet);
 
-    println!("Wallet Address: {}", wallet.get_address());
+    println!("Wallet Address: {}\n\n", wallet.get_address());
 
-    println!("Recovering Account.....");
+    println!("Recovering Account.....\n\n");
     let wallet_recovery = Wallet::recover_account_from_mnemonic(wallet.get_mnemonic().unwrap());
 
     println!("Recovered Account is {:?}", wallet_recovery);
+
+    println!("Recovered Account Private Key: {}\n\n", wallet_recovery.unwrap().export_private_key());
    
 
     Ok(())
